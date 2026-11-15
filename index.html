@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estados de la materia y fuerzas entre partículas</title>
+<style>
+:root{color-scheme:light;--bg:#f3f6f9;--card:#fff;--ink:#1f2a37;--mut:#617085;--line:#dde4ec;--a:#2563eb;--b:#d97706;--acc:#0f766e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5}
+header{padding:22px 20px 6px;max-width:1100px;margin:0 auto}
+h1{font-size:1.55rem;margin:0 0 4px;font-weight:650;letter-spacing:-.01em}
+h2{font-size:1.05rem;margin:0 0 8px}
+p{margin:0 0 8px}
+.mut{color:var(--mut)}.small{font-size:.85rem}
+main{max-width:1100px;margin:0 auto;padding:10px 20px 40px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.ctrl{display:grid;grid-template-columns:2fr 1fr auto;gap:22px;align-items:start}
+.sl label{display:block;font-weight:600;margin-bottom:6px}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.ends{display:flex;justify-content:space-between;font-size:.82rem;color:var(--mut)}
+.chk{display:grid;gap:8px;font-size:.92rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid.one{grid-template-columns:minmax(0,520px)}
+.hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+select{flex:1;min-width:0;font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+canvas{width:100%;height:auto;display:block;border-radius:8px;border:1px solid var(--line)}
+.st{display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px;gap:8px;flex-wrap:wrap}
+.badge{background:#e6f4f1;color:#0b5d55;font-weight:600;padding:3px 10px;border-radius:999px;font-size:.9rem}
+details summary{cursor:pointer;font-weight:650}
+details[open] summary{margin-bottom:10px}
+details ul{margin:0;padding-left:20px}details li{margin-bottom:6px}
+:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+@media(max-width:820px){.ctrl,.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Cambios de estado y fuerzas entre partículas</h1>
+<p class="mut">Aporta o quita energía y observa cómo cambian el movimiento de las partículas, las fuerzas que las unen y la temperatura. Elige las sustancias por el tipo de fuerza que las mantiene unidas. Presión: 1 atm.</p>
+</header>
+<main>
+<section class="card ctrl">
+  <div class="sl"><label for="q">Energía neta aportada: <span id="qv">0 kJ</span></label>
+    <input type="range" id="q" min="0" max="100" step="any" value="0">
+    <div class="ends"><span>◀ Enfriar (quitar energía)</span><span>Calentar (aportar energía) ▶</span></div></div>
+  <div class="sl"><label for="m">Masa inicial: <span id="mv">100 g</span></label>
+    <input type="range" id="m" min="50" max="100" step="1" value="100">
+    <div class="ends"><span>50 g</span><span>100 g</span></div></div>
+  <div class="chk"><label><input type="checkbox" id="cmp" checked> Comparar dos sustancias</label>
+    <label><input type="checkbox" id="rev"> Revelar la sustancia</label></div>
+</section>
+<section class="grid" id="grid"></section>
+<section class="card">
+  <h2>Curva de calentamiento (temperatura vs. energía)</h2>
+  <canvas id="ch" width="700" height="360" role="img" aria-label="Curva de calentamiento de las sustancias elegidas"></canvas>
+  <p class="mut small" style="margin-top:8px">Tramos inclinados: Q = m·c·ΔT (la temperatura sube). Mesetas: Q = m·L (la energía rompe fuerzas y la temperatura no cambia). El punto marca la posición actual del deslizador de energía.</p>
+</section>
+<details class="card" id="lim">
+  <summary>Límites del Modelo</summary>
+  <p>Este simulador es un <b>modelo simplificado</b> del modelo cinético molecular. Sirve para razonar, no para medir.</p>
+  <ul>
+    <li>Es una vista 2D con pocas partículas (24 a 48, según la masa). Las distancias y tamaños no están a escala.</li>
+    <li>Las moléculas se dibujan como esferas únicas. No se muestran átomos, geometría molecular ni rotaciones.</li>
+    <li>Se usan calores específicos constantes en cada estado y valores aproximados a 1 atm. No hay sobrecalentamiento, subenfriamiento, impurezas ni cambios de presión.</li>
+    <li>El CO₂ a 1 atm no tiene líquido: sublima. El He no solidifica a 1 atm; por eso la simulación parte de líquido a 1 K.</li>
+    <li>El SiO₂ y el cobre tienen valores de L poco precisos y el SiO₂ se descompone parcialmente al hervir. La "niebla" del cobre es solo una metáfora de la nube de electrones.</li>
+    <li>La intensidad de las líneas de enlace es cualitativa: indica tendencia, no energía real.</li>
+  </ul>
+</details>
+</main>
+<script>
+"use strict";
+const W=360,H=280,SP=34,COLS=8;
+// Datos aproximados a 1 atm. T en °C, c en J/(g·K), L en J/g.
+const SUBS={
+ hb:{tipo:"Moléculas polares con puentes de hidrógeno",corto:"Puentes de H",nom:"Agua, H₂O",vis:"hb",T0:-30,ph0:"s",cs:2.09,cl:4.18,cg:2.01,tm:0,Lf:334,tb:100,Lv:2260,col:"#60a5fa",r:11,
+  nota:"Líneas azules discontinuas: puentes de hidrógeno entre moléculas polares."},
+ dd:{tipo:"Moléculas polares sin puentes de H (dipolo–dipolo)",corto:"Dipolo–dipolo",nom:"Propanona (acetona)",vis:"dd",T0:-130,ph0:"s",cs:1.6,cl:2.17,cg:1.3,tm:-95,Lf:98,tb:56,Lv:501,col:"#a78bfa",r:11,
+  nota:"Líneas violetas punteadas: atracciones entre dipolos permanentes."},
+ ld:{tipo:"Moléculas apolares (fuerzas de London)",corto:"London (moléculas)",nom:"Dióxido de carbono, CO₂",vis:"ld",T0:-120,ph0:"s",cs:1.2,cl:0,cg:0.85,tm:null,Ls:571,tb:-78.5,col:"#94a3b8",r:11,
+  nota:"Líneas grises tenues: fuerzas de London, débiles. A 1 atm pasa de sólido a gas (sublima)."},
+ he:{tipo:"Átomos (fuerzas de London muy débiles)",corto:"London (átomos)",nom:"Helio, He",vis:"he",T0:-272.15,ph0:"l",cs:0,cl:4.5,cg:5.19,tm:null,tb:-268.93,Lv:20.9,col:"#f9a8d4",r:7,
+  nota:"Fuerzas casi imperceptibles: no hay sólido a 1 atm. Se parte de líquido a 1 K."},
+ ion:{tipo:"Red iónica (cationes + aniones)",corto:"Red iónica",nom:"Cloruro de sodio, NaCl",vis:"ion",T0:25,ph0:"s",cs:0.87,cl:1.1,cg:0.5,tm:801,Lf:517,tb:1413,Lv:2900,col:"#f87171",col2:"#34d399",r:9,r2:13,
+  nota:"Rojo pequeño (+): cationes. Verde grande (−): aniones. Líneas: atracción electrostática."},
+ met:{tipo:"Enlace metálico (cationes + mar de electrones)",corto:"Enlace metálico",nom:"Cobre, Cu",vis:"met",T0:25,ph0:"s",cs:0.385,cl:0.495,cg:0.3,tm:1085,Lf:205,tb:2562,Lv:4730,col:"#f59e0b",r:11,
+  nota:"Esferas (+): cationes en red. Niebla amarilla y puntos azules: electrones deslocalizados."},
+ cov:{tipo:"Red covalente (átomos unidos por enlaces)",corto:"Red covalente",nom:"Dióxido de silicio, SiO₂",vis:"cov",T0:25,ph0:"s",cs:1.0,cl:1.3,cg:0.9,tm:1713,Lf:160,tb:2950,Lv:8700,col:"#818cf8",col2:"#fb7185",r:12,r2:9,
+  nota:"Violeta y rosa: dos tipos de átomos. Líneas gruesas: enlaces covalentes."}
+};
+const STY={hb:{col:"#2563eb",dash:[6,4],w:2.2,cut:1.6},dd:{col:"#7c3aed",dash:[2,4],w:1.8,cut:1.5},ld:{col:"#64748b",dash:[1,5],w:1,cut:1.45,a:.6},
+ he:{col:"#94a3b8",dash:[1,7],w:.8,cut:1.3,a:.45},ion:{col:"#475569",dash:[],w:2.6,cut:1.5,opp:1},cov:{col:"#334155",dash:[],w:5,cut:1.7,adj:1}};
+const DESC={s:"Sólido: las partículas vibran alrededor de posiciones fijas.",l:"Líquido: las partículas se deslizan unas sobre otras; las atracciones siguen, pero más débiles.",
+ g:"Gas: las partículas se mueven libres y muy separadas; las atracciones son despreciables.",melt:"Fusión: la energía rompe parte de las atracciones. La temperatura se mantiene.",
+ boil:"Ebullición: la energía separa las partículas del líquido. La temperatura se mantiene.",sub:"Sublimación: las partículas pasan de sólido a gas. La temperatura se mantiene."};
+const NAME={s:"Sólido",l:"Líquido",g:"Gas",melt:"Fusión",boil:"Ebullición",sub:"Sublimación"};
+
+// ---- Física: segmentos Q = m·c·ΔT y Q = m·L ----
+const Hs=(ph,c,T1,T2,m)=>({ph,T1,T2,E:m*c*(T2-T1)});
+const Tr=(ph,T,L,m)=>({ph,T1:T,T2:T,E:m*L});
+function build(s,m){const g=[];let T=s.T0,ph=s.ph0;
+ if(ph==="s"){
+  if(s.tm!=null){g.push(Hs("s",s.cs,T,s.tm,m),Tr("melt",s.tm,s.Lf,m));T=s.tm;ph="l";}
+  else{g.push(Hs("s",s.cs,T,s.tb,m),Tr("sub",s.tb,s.Ls,m));T=s.tb;ph="g";}
+ }
+ if(ph==="l"){g.push(Hs("l",s.cl,T,s.tb,m),Tr("boil",s.tb,s.Lv,m));T=s.tb;}
+ const te=s.tb+Math.max(100,.1*(s.tb+273.15));g.push(Hs("g",s.cg,T,te,m));
+ let c=0;g.forEach(x=>{x.q0=c;c+=x.E;x.q1=c});return{g,tot:c,Tend:te};}
+function stateAt(M,Qk){const q=Qk*1000;for(const x of M.g){if(q<=x.q1||x===M.g[M.g.length-1]){
+  const f=Math.min(1,Math.max(0,(q-x.q0)/x.E));return{phase:x.ph,T:x.T1+(x.T2-x.T1)*f,frac:f};}}}
+
+// ---- Partículas ----
+function mkParts(s,N){const P=[];
+ for(let i=0;i<N;i++){const c=i%COLS,r=Math.floor(i/COLS),ch=(c+r)%2;
+  P.push({i,c,r,ch,lx:(W-(COLS-1)*SP)/2+c*SP,ly:H-26-r*SP,vx:0,vy:0,ph:Math.random()*6.28,ph2:Math.random()*6.28,w:.15+Math.random()*.1,mode:"s",
+   r_:(s.vis==="ion"||s.vis==="cov")?(ch?s.r2:s.r):s.r,fill:s.col2&&ch?s.col2:s.col});
+  P[i].x=P[i].lx;P[i].y=P[i].ly;}
+ [...P].sort((a,b)=>a.ly-b.ly||a.i-b.i).forEach((p,k)=>p.rank=k);return P;}
+function modeOf(st,p,N){const f=st.frac*N;
+ switch(st.phase){case"melt":return p.rank<f?"l":"s";case"boil":return p.rank<f?"g":"l";case"sub":return p.rank<f?"g":"s";default:return st.phase;}}
+let tick=0;
+function stepParts(pn,st){const s=pn.sub,P=pn.P,N=P.length,TK=st.T+273.15,sr=Math.sqrt(TK/(s.tb+273.15));
+ const ref=(s.tm!=null?s.tm:s.tb)+273.15,amp=.8+4.2*Math.min(1,TK/ref),vl=.5+Math.min(sr,1.2),vg=1.6+1.6*Math.min(sr,2);
+ for(const p of P){const mo=modeOf(st,p,N),R=p.r_;
+  if(mo!==p.mode){p.mode=mo;if(mo!=="s"){const a=Math.random()*6.28,v=mo==="g"?vg:vl;p.vx=Math.cos(a)*v;p.vy=Math.sin(a)*v;}}
+  if(mo==="s"){p.x+=(p.lx+amp*Math.sin(tick*p.w+p.ph)-p.x)*.15;p.y+=(p.ly+amp*Math.cos(tick*p.w*1.3+p.ph2)-p.y)*.15;continue;}
+  const vm=mo==="g"?vg:vl;
+  p.vx+=(Math.random()-.5)*.3;p.vy+=(Math.random()-.5)*.3;
+  if(mo==="l"){p.vy+=.07;for(const q of P){if(q===p||q.mode==="g")continue;const dx=p.x-q.x,dy=p.y-q.y,d=Math.hypot(dx,dy)||1,mm=.85*SP;
+    if(d<mm){const f=(mm-d)*.02;p.vx+=dx/d*f;p.vy+=dy/d*f;}}}
+  let sp=Math.hypot(p.vx,p.vy);if(sp>vm){p.vx*=vm/sp;p.vy*=vm/sp;sp=vm;}
+  if(mo==="g"&&sp<vm*.6){p.vx*=1.1;p.vy*=1.1;}
+  p.x+=p.vx;p.y+=p.vy;
+  if(p.x<R){p.x=R;p.vx=Math.abs(p.vx);}if(p.x>W-R){p.x=W-R;p.vx=-Math.abs(p.vx);}
+  if(p.y<R){p.y=R;p.vy=Math.abs(p.vy);}if(p.y>H-R){p.y=H-R;p.vy=-Math.abs(p.vy)*(mo==="l"?.3:1);}
+ }}
+function drawPn(pn,st){const c=pn.cx,s=pn.sub,P=pn.P;
+ c.setLineDash([]);c.globalAlpha=1;c.fillStyle="#f8fafc";c.fillRect(0,0,W,H);
+ const live=P.filter(p=>p.mode!=="g");
+ if(s.vis==="met"&&live.length){
+  for(const p of live){const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,SP*1.1);g.addColorStop(0,"rgba(253,224,71,.38)");g.addColorStop(1,"rgba(253,224,71,0)");c.fillStyle=g;c.fillRect(p.x-SP*1.2,p.y-SP*1.2,SP*2.4,SP*2.4);}
+  c.fillStyle="#2563eb";
+  for(const e of pn.el){e.ox+=(Math.random()-.5)*4;e.oy+=(Math.random()-.5)*4;e.ox=Math.max(-28,Math.min(28,e.ox));e.oy=Math.max(-28,Math.min(28,e.oy));
+   if(Math.random()<.02)e.k=Math.floor(Math.random()*999);const p=live[e.k%live.length];c.beginPath();c.arc(p.x+e.ox,p.y+e.oy,1.8,0,6.3);c.fill();}
+ }
+ const bs=STY[s.vis];
+ if(bs){const hf=1-.5*Math.min(1,Math.max(0,(st.T-s.T0)/(s.tb-s.T0))),cut=bs.cut*SP;c.strokeStyle=bs.col;c.lineWidth=bs.w;c.setLineDash(bs.dash);c.lineCap="round";
+  for(let i=0;i<live.length;i++)for(let j=i+1;j<live.length;j++){const a=live[i],b=live[j];
+   if(bs.opp&&a.ch===b.ch)continue;if(bs.adj&&Math.abs(a.c-b.c)+Math.abs(a.r-b.r)!==1)continue;
+   const d=Math.hypot(a.x-b.x,a.y-b.y);if(d>=cut)continue;
+   c.globalAlpha=(bs.a||1)*hf*Math.min(1,(cut-d)/(cut-SP*.9))*((a.mode==="s"&&b.mode==="s")?1:.6);
+   c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
+  c.globalAlpha=1;c.setLineDash([]);}
+ for(const p of P){c.beginPath();c.arc(p.x,p.y,p.r_,0,6.3);c.fillStyle=p.fill;c.fill();c.lineWidth=1.2;c.strokeStyle="rgba(30,41,59,.45)";c.stroke();
+  if(s.vis==="ion"||s.vis==="met"){c.fillStyle="#1f2a37";c.font="bold 12px system-ui";c.textAlign="center";c.textBaseline="middle";c.fillText((s.vis==="met"||!p.ch)?"+":"−",p.x,p.y+.5);}}
+}
+
+// ---- Interfaz ----
+const $=id=>document.getElementById(id);
+const COLS_AB={A:"#2563eb",B:"#d97706"};
+const panels=[];
+function newPanel(k,key){const el=$("grid");const d=document.createElement("div");d.className="card";
+ d.innerHTML=`<div class="hd"><span class="dot" style="background:${COLS_AB[k]}"></span><select id="s${k}" aria-label="Sustancia ${k}"></select></div>
+ <canvas width="${W}" height="${H}" aria-label="Animación de partículas de la sustancia ${k}"></canvas>
+ <div class="st"><span class="badge" id="b${k}"></span><b id="t${k}"></b></div><p id="d${k}"></p><p class="mut small" id="n${k}"></p>`;
+ el.appendChild(d);const sel=d.querySelector("select");
+ for(const [id,s] of Object.entries(SUBS)){const o=document.createElement("option");o.value=id;o.dataset.id=id;sel.appendChild(o);}
+ const pn={k,box:d,el:[],sel,cx:d.querySelector("canvas").getContext("2d"),key,last:""};
+ sel.value=key;sel.onchange=()=>{pn.key=sel.value;rebuild();};panels.push(pn);}
+function labels(){const r=$("rev").checked;for(const pn of panels)for(const o of pn.sel.options)o.textContent=SUBS[o.value].tipo+(r?"  ["+SUBS[o.value].nom+"]":"");}
+const q=$("q"),mr=$("m");
+function mass(){return +mr.value}
+function active(){return panels.filter(p=>p.on)}
+function rebuild(){const N=Math.round(mass()/100*48);
+ for(const pn of panels){pn.on=pn.k==="A"||$("cmp").checked;pn.box.style.display=pn.on?"":"none";
+  pn.sub=SUBS[pn.key];pn.M=build(pn.sub,mass());pn.P=mkParts(pn.sub,N);
+  pn.el=pn.sub.vis==="met"?Array.from({length:40},()=>({k:Math.floor(Math.random()*999),ox:0,oy:0})):[];}
+ setMax();}
+function setMax(){const act=active();const mx=Math.max(...act.map(p=>p.M.tot))/1000;q.max=mx;if(+q.value>mx)q.value=mx;
+ $("grid").className="grid"+(act.length===1?" one":"");labels();}
+function upd(){$("mv").textContent=mass()+" g";}
+$("m").oninput=()=>{upd();rebuild();};
+$("cmp").onchange=rebuild;$("rev").onchange=()=>{labels();};
+q.oninput=()=>{};
+
+// ---- Gráfico ----
+const ch=$("ch"),gx=ch.getContext("2d");
+function ticks(a,b,n){const raw=(b-a)/n,mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,5,10].map(x=>x*mag).find(x=>x>=raw),o=[];
+ for(let v=Math.ceil(a/st)*st;v<=b+1e-9;v+=st)o.push(v);return o;}
+function drawChart(){const act=active(),cw=ch.width,chh=ch.height,L=62,R=16,T=16,B=44;
+ gx.clearRect(0,0,cw,chh);gx.fillStyle="#fff";gx.fillRect(0,0,cw,chh);
+ const xmax=Math.max(...act.map(p=>p.M.tot))/1000,ymin=Math.min(...act.map(p=>p.sub.T0)),ymax=Math.max(...act.map(p=>p.M.Tend)),pad=(ymax-ymin)*.05;
+ const X=v=>L+v/xmax*(cw-L-R),Y=v=>chh-B-(v-(ymin-pad))/(ymax-ymin+2*pad)*(chh-T-B);
+ gx.font="12px system-ui";gx.lineWidth=1;
+ gx.fillStyle="#617085";gx.strokeStyle="#e8edf3";gx.textAlign="right";gx.textBaseline="middle";
+ for(const v of ticks(ymin,ymax,6)){gx.beginPath();gx.moveTo(L,Y(v));gx.lineTo(cw-R,Y(v));gx.stroke();gx.fillText(Math.round(v),L-6,Y(v));}
+ gx.textAlign="center";gx.textBaseline="top";
+ for(const v of ticks(0,xmax,8)){gx.beginPath();gx.moveTo(X(v),T);gx.lineTo(X(v),chh-B);gx.stroke();gx.fillText(Math.round(v*10)/10,X(v),chh-B+5);}
+ gx.fillStyle="#1f2a37";gx.fillText("Energía aportada (kJ)",(L+cw-R)/2,chh-18);
+ gx.save();gx.translate(14,(T+chh-B)/2);gx.rotate(-Math.PI/2);gx.fillText("Temperatura (°C)",0,0);gx.restore();
+ gx.strokeStyle="#9aa8ba";gx.beginPath();gx.moveTo(L,T);gx.lineTo(L,chh-B);gx.lineTo(cw-R,chh-B);gx.stroke();
+ const qv=+q.value;
+ gx.setLineDash([4,4]);gx.strokeStyle="#9aa8ba";gx.beginPath();gx.moveTo(X(qv),T);gx.lineTo(X(qv),chh-B);gx.stroke();gx.setLineDash([]);
+ for(const pn of act){const col=COLS_AB[pn.k];gx.strokeStyle=col;gx.lineWidth=2.5;gx.beginPath();gx.moveTo(X(0),Y(pn.M.g[0].T1));
+  for(const g of pn.M.g)gx.lineTo(X(g.q1/1000),Y(g.T2));gx.stroke();
+  const st=stateAt(pn.M,qv);gx.fillStyle=col;gx.strokeStyle="#fff";gx.lineWidth=2;gx.beginPath();gx.arc(X(qv),Y(st.T),6,0,6.3);gx.fill();gx.stroke();}
+ let lx=L+12;gx.textAlign="left";gx.textBaseline="middle";gx.font="13px system-ui";
+ for(const pn of act){gx.fillStyle=COLS_AB[pn.k];gx.fillRect(lx,T+6,14,4);gx.fillStyle="#1f2a37";const t=pn.sub.corto;gx.fillText(pn.k+": "+t,lx+20,T+9);lx+=gx.measureText(pn.k+": "+t).width+44;}
+}
+
+// ---- Bucle ----
+function frame(){tick++;const qv=+q.value;$("qv").textContent=(Math.round(qv*10)/10)+" kJ";
+ for(const pn of active()){const st=stateAt(pn.M,qv);
+  stepParts(pn,st);drawPn(pn,st);
+  $("b"+pn.k).textContent=NAME[st.phase];$("t"+pn.k).textContent=(Math.round(st.T*10)/10)+" °C";
+  $("d"+pn.k).textContent=DESC[st.phase];$("n"+pn.k).textContent=pn.sub.nota+($("rev").checked?" Sustancia: "+pn.sub.nom+".":"");}
+ drawChart();requestAnimationFrame(frame);}
+if(matchMedia("(prefers-reduced-motion: reduce)").matches){/* animación suave igualmente: es el contenido didáctico */}
+newPanel("A","hb");newPanel("B","met");upd();rebuild();frame();
+</script>
+</body>
+</html>
